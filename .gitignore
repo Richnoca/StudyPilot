@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+
+# Logs
+*.log
+
+# SQLite database file
+backend/studypilot.db
+
+# Build outputs
+frontend/dist/
+backend/dist/
+
+# OS/editor files
+.DS_Store
+.vscode/
