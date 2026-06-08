@@ -7,10 +7,27 @@ const API_URL = "http://localhost:5000/api";
 function App() {
   const [classes, setClasses] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [classGrades, setClassGrades] = useState({});
+  const [categoriesByClass, setCategoriesByClass] = useState({});
+
   const [selectedClassFilter, setSelectedClassFilter] = useState("All");
   const [selectedPastClassFilter, setSelectedPastClassFilter] = useState("All");
+  const [sortMode, setSortMode] = useState("priority");
+
   const [editingAssignmentId, setEditingAssignmentId] = useState(null);
-  const [classGrades, setClassGrades] = useState({});
+
+  const [selectedCategoryClassId, setSelectedCategoryClassId] = useState("");
+  const [selectedCalculatorClassId, setSelectedCalculatorClassId] = useState("");
+
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    weight: ""
+  });
+
+  const [calculatorForm, setCalculatorForm] = useState({
+    targetGrade: 80,
+    finalWeight: 20
+  });
 
   const [classForm, setClassForm] = useState({
     name: "",
@@ -24,6 +41,7 @@ function App() {
 
   const [assignmentForm, setAssignmentForm] = useState({
     class_id: "",
+    category_id: "",
     title: "",
     due_date: "",
     estimated_hours: 1,
@@ -33,18 +51,62 @@ function App() {
     points_possible: ""
   });
 
+  const fetchAllCategories = async (classList) => {
+    const categoryMap = {};
+
+    for (const course of classList) {
+      const response = await axios.get(
+        `${API_URL}/classes/${course.id}/categories`
+      );
+      categoryMap[course.id] = response.data;
+    }
+
+    setCategoriesByClass(categoryMap);
+  };
+
+  const fetchClassGrades = async (classList) => {
+    const grades = {};
+
+    for (const course of classList) {
+      const response = await axios.get(
+        `${API_URL}/classes/${course.id}/current-grade`
+      );
+      grades[course.id] = response.data;
+    }
+
+    setClassGrades(grades);
+  };
+
   const fetchClasses = async () => {
     try {
       const response = await axios.get(`${API_URL}/classes`);
-      setClasses(response.data);
-      fetchClassGrades(response.data);
+      const classList = response.data;
 
-      if (response.data.length > 0 && !assignmentForm.class_id) {
-        setAssignmentForm((prev) => ({
-          ...prev,
-          class_id: response.data[0].id
-        }));
+      setClasses(classList);
+
+      if (classList.length > 0) {
+        if (!assignmentForm.class_id) {
+          setAssignmentForm((prev) => ({
+            ...prev,
+            class_id: classList[0].id
+          }));
+        }
+
+        if (!selectedCategoryClassId) {
+          setSelectedCategoryClassId(classList[0].id);
+        }
+
+        if (!selectedCalculatorClassId) {
+          setSelectedCalculatorClassId(classList[0].id);
+          setCalculatorForm((prev) => ({
+            ...prev,
+            targetGrade: classList[0].target_grade || 80
+          }));
+        }
       }
+
+      await fetchAllCategories(classList);
+      await fetchClassGrades(classList);
     } catch (error) {
       console.error("Error fetching classes:", error);
     }
@@ -59,24 +121,6 @@ function App() {
     }
   };
 
-  const fetchClassGrades = async (classList) => {
-  try {
-    const grades = {};
-
-    for (const course of classList) {
-      const response = await axios.get(
-        `${API_URL}/classes/${course.id}/current-grade`
-      );
-
-      grades[course.id] = response.data;
-    }
-
-    setClassGrades(grades);
-  } catch (error) {
-    console.error("Error fetching class grades:", error);
-  }
-};
-
   useEffect(() => {
     fetchClasses();
     fetchAssignments();
@@ -84,20 +128,36 @@ function App() {
 
   const handleClassChange = (event) => {
     const { name, value } = event.target;
-
-    setClassForm((prev) => ({
-      ...prev,
-      [name]: value
-    }));
+    setClassForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAssignmentChange = (event) => {
     const { name, value } = event.target;
 
-    setAssignmentForm((prev) => ({
-      ...prev,
-      [name]: value
-    }));
+    setAssignmentForm((prev) => {
+      if (name === "class_id") {
+        return {
+          ...prev,
+          class_id: value,
+          category_id: ""
+        };
+      }
+
+      return {
+        ...prev,
+        [name]: value
+      };
+    });
+  };
+
+  const handleCategoryChange = (event) => {
+    const { name, value } = event.target;
+    setCategoryForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCalculatorChange = (event) => {
+    const { name, value } = event.target;
+    setCalculatorForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClassSubmit = async (event) => {
@@ -126,41 +186,144 @@ function App() {
     }
   };
 
-const handleAssignmentSubmit = async (event) => {
-  event.preventDefault();
+  const handleCategorySubmit = async (event) => {
+    event.preventDefault();
 
-  if (!assignmentForm.class_id) {
-    alert("Please add a class before adding assignments.");
-    return;
-  }
+    if (!selectedCategoryClassId) {
+      alert("Please add a class first.");
+      return;
+    }
 
-  const assignmentPayload = {
-    ...assignmentForm,
-    class_id: Number(assignmentForm.class_id),
-    estimated_hours: Number(assignmentForm.estimated_hours),
-    difficulty: Number(assignmentForm.difficulty),
-    score_received:
-      assignmentForm.score_received === ""
-        ? null
-        : Number(assignmentForm.score_received),
-    points_possible:
-      assignmentForm.points_possible === ""
-        ? null
-        : Number(assignmentForm.points_possible)
+    try {
+      await axios.post(`${API_URL}/classes/${selectedCategoryClassId}/categories`, {
+        name: categoryForm.name,
+        weight: Number(categoryForm.weight)
+      });
+
+      setCategoryForm({
+        name: "",
+        weight: ""
+      });
+
+      fetchClasses();
+      fetchAssignments();
+    } catch (error) {
+      console.error("Error adding category:", error);
+    }
   };
 
-  try {
-    if (editingAssignmentId) {
-      await axios.put(
-        `${API_URL}/assignments/${editingAssignmentId}`,
-        assignmentPayload
-      );
-    } else {
-      await axios.post(`${API_URL}/assignments`, assignmentPayload);
+  const handleDeleteCategory = async (categoryId) => {
+    try {
+      await axios.delete(`${API_URL}/categories/${categoryId}`);
+      fetchClasses();
+      fetchAssignments();
+    } catch (error) {
+      console.error("Error deleting category:", error);
     }
+  };
+
+  const handleAssignmentSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!assignmentForm.class_id) {
+      alert("Please add a class before adding assignments.");
+      return;
+    }
+
+    const assignmentPayload = {
+      ...assignmentForm,
+      class_id: Number(assignmentForm.class_id),
+      category_id: assignmentForm.category_id
+        ? Number(assignmentForm.category_id)
+        : null,
+      estimated_hours: Number(assignmentForm.estimated_hours),
+      difficulty: Number(assignmentForm.difficulty),
+      score_received:
+        assignmentForm.score_received === ""
+          ? null
+          : Number(assignmentForm.score_received),
+      points_possible:
+        assignmentForm.points_possible === ""
+          ? null
+          : Number(assignmentForm.points_possible)
+    };
+
+    try {
+      if (editingAssignmentId) {
+        await axios.put(
+          `${API_URL}/assignments/${editingAssignmentId}`,
+          assignmentPayload
+        );
+      } else {
+        await axios.post(`${API_URL}/assignments`, assignmentPayload);
+      }
+
+      setAssignmentForm({
+        class_id: classes.length > 0 ? classes[0].id : "",
+        category_id: "",
+        title: "",
+        due_date: "",
+        estimated_hours: 1,
+        difficulty: 1,
+        status: "Not Started",
+        score_received: "",
+        points_possible: ""
+      });
+
+      setEditingAssignmentId(null);
+      fetchAssignments();
+      fetchClasses();
+    } catch (error) {
+      console.error("Error saving assignment:", error);
+    }
+  };
+
+  const handleDeleteClass = async (classId) => {
+    try {
+      await axios.delete(`${API_URL}/classes/${classId}`);
+      fetchClasses();
+      fetchAssignments();
+    } catch (error) {
+      console.error("Error deleting class:", error);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    try {
+      await axios.delete(`${API_URL}/assignments/${assignmentId}`);
+      fetchAssignments();
+      fetchClasses();
+    } catch (error) {
+      console.error("Error deleting assignment:", error);
+    }
+  };
+
+  const handleEditAssignment = (assignment) => {
+    setEditingAssignmentId(assignment.id);
+
+    setAssignmentForm({
+      class_id: assignment.class_id,
+      category_id: assignment.category_id || "",
+      title: assignment.title,
+      due_date: assignment.due_date || "",
+      estimated_hours: assignment.estimated_hours || 1,
+      difficulty: assignment.difficulty || 1,
+      status: assignment.status || "Not Started",
+      score_received:
+        assignment.score_received === null ? "" : assignment.score_received,
+      points_possible:
+        assignment.points_possible === null ? "" : assignment.points_possible
+    });
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAssignmentId(null);
 
     setAssignmentForm({
       class_id: classes.length > 0 ? classes[0].id : "",
+      category_id: "",
       title: "",
       due_date: "",
       estimated_hours: 1,
@@ -169,60 +332,7 @@ const handleAssignmentSubmit = async (event) => {
       score_received: "",
       points_possible: ""
     });
-
-    setEditingAssignmentId(null);
-    fetchAssignments();
-    fetchClasses();
-  } catch (error) {
-    console.error("Error saving assignment:", error);
-  }
-};
-
-  const handleDeleteAssignment = async (assignmentId) => {
-    try {
-      await axios.delete(`${API_URL}/assignments/${assignmentId}`);
-      fetchAssignments();
-    } catch (error) {
-      console.error("Error deleting assignment:", error);
-    }
   };
-
-  const handleEditAssignment = (assignment) => {
-  setEditingAssignmentId(assignment.id);
-
-  setAssignmentForm({
-    class_id: assignment.class_id,
-    title: assignment.title,
-    due_date: assignment.due_date || "",
-    estimated_hours: assignment.estimated_hours || 1,
-    difficulty: assignment.difficulty || 1,
-    status: assignment.status || "Not Started",
-    score_received:
-      assignment.score_received === null ? "" : assignment.score_received,
-    points_possible:
-      assignment.points_possible === null ? "" : assignment.points_possible
-  });
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
-};
-
-const handleCancelEdit = () => {
-  setEditingAssignmentId(null);
-
-  setAssignmentForm({
-    class_id: classes.length > 0 ? classes[0].id : "",
-    title: "",
-    due_date: "",
-    estimated_hours: 1,
-    difficulty: 1,
-    status: "Not Started",
-    score_received: "",
-    points_possible: ""
-  });
-};
 
   const getPriorityScore = (assignment) => {
     let score = 0;
@@ -251,20 +361,43 @@ const handleCancelEdit = () => {
     return Math.max(score, 0);
   };
 
+  const allCurrentAssignments = assignments.filter(
+    (assignment) => assignment.status !== "Graded"
+  );
+
   const filteredAssignments =
     selectedClassFilter === "All"
-      ? assignments
-      : assignments.filter(
+      ? allCurrentAssignments
+      : allCurrentAssignments.filter(
           (assignment) => String(assignment.class_id) === selectedClassFilter
         );
 
   const sortedAssignments = [...filteredAssignments].sort((a, b) => {
-    return getPriorityScore(b) - getPriorityScore(a);
-  });
+    if (sortMode === "priority") {
+      return getPriorityScore(b) - getPriorityScore(a);
+    }
 
-  const currentAssignments = sortedAssignments.filter(
-    (assignment) => assignment.status !== "Graded"
-  );
+    if (sortMode === "dueDate") {
+      return (
+        new Date(a.due_date || "9999-12-31") -
+        new Date(b.due_date || "9999-12-31")
+      );
+    }
+
+    if (sortMode === "class") {
+      return a.course_code.localeCompare(b.course_code);
+    }
+
+    if (sortMode === "difficulty") {
+      return Number(b.difficulty) - Number(a.difficulty);
+    }
+
+    if (sortMode === "hours") {
+      return Number(b.estimated_hours) - Number(a.estimated_hours);
+    }
+
+    return 0;
+  });
 
   const pastAssignments =
     selectedPastClassFilter === "All"
@@ -273,7 +406,62 @@ const handleCancelEdit = () => {
           (assignment) =>
             assignment.status === "Graded" &&
             String(assignment.class_id) === selectedPastClassFilter
-          );
+        );
+
+  const highestPriorityAssignment = [...allCurrentAssignments].sort(
+    (a, b) => getPriorityScore(b) - getPriorityScore(a)
+  )[0];
+
+  const dueThisWeek = allCurrentAssignments.filter((assignment) => {
+    if (!assignment.due_date) return false;
+
+    const today = new Date();
+    const dueDate = new Date(assignment.due_date);
+    const diffTime = dueDate - today;
+    const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return daysUntilDue >= 0 && daysUntilDue <= 7;
+  }).length;
+
+  const validGrades = Object.values(classGrades)
+    .map((grade) => grade.currentGrade)
+    .filter((grade) => grade !== null && grade !== undefined);
+
+  const averageGrade =
+    validGrades.length > 0
+      ? (
+          validGrades.reduce((sum, grade) => sum + grade, 0) /
+          validGrades.length
+        ).toFixed(2)
+      : "N/A";
+
+  const selectedCalculatorGrade =
+    selectedCalculatorClassId && classGrades[selectedCalculatorClassId]
+      ? classGrades[selectedCalculatorClassId].currentGrade
+      : null;
+
+  const finalNeeded = (() => {
+    const currentGrade = Number(selectedCalculatorGrade);
+    const targetGrade = Number(calculatorForm.targetGrade);
+    const finalWeight = Number(calculatorForm.finalWeight) / 100;
+
+    if (
+      selectedCalculatorGrade === null ||
+      selectedCalculatorGrade === undefined ||
+      !finalWeight ||
+      finalWeight <= 0
+    ) {
+      return null;
+    }
+
+    const needed =
+      (targetGrade - currentGrade * (1 - finalWeight)) / finalWeight;
+
+    return Number(needed.toFixed(2));
+  })();
+
+  const selectedAssignmentCategories =
+    categoriesByClass[assignmentForm.class_id] || [];
 
   return (
     <div className="app">
@@ -289,7 +477,55 @@ const handleCancelEdit = () => {
       </header>
 
       <main className="layout">
-        <section className="card">
+        <section className="card dashboard-section">
+          <div className="section-header">
+            <h2>Dashboard</h2>
+            <span>Overview</span>
+          </div>
+
+          <div className="dashboard-grid">
+            <div className="dashboard-card">
+              <p>Highest Priority</p>
+              <h3>
+                {highestPriorityAssignment
+                  ? highestPriorityAssignment.title
+                  : "No active assignments"}
+              </h3>
+              {highestPriorityAssignment && (
+                <span>
+                  {highestPriorityAssignment.course_code} • Score{" "}
+                  {getPriorityScore(highestPriorityAssignment)}
+                </span>
+              )}
+            </div>
+
+            <div className="dashboard-card">
+              <p>Due This Week</p>
+              <h3>{dueThisWeek}</h3>
+              <span>active assignments</span>
+            </div>
+
+            <div className="dashboard-card">
+              <p>Average Current Grade</p>
+              <h3>{averageGrade === "N/A" ? "N/A" : `${averageGrade}%`}</h3>
+              <span>across graded classes</span>
+            </div>
+
+            <div className="dashboard-card">
+              <p>Submitted</p>
+              <h3>
+                {
+                  assignments.filter(
+                    (assignment) => assignment.status === "Submitted"
+                  ).length
+                }
+              </h3>
+              <span>waiting for grades</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="card add-class-section">
           <h2>Add Class</h2>
 
           <form onSubmit={handleClassSubmit} className="class-form">
@@ -382,7 +618,172 @@ const handleCancelEdit = () => {
           </form>
         </section>
 
-        <section className="card">
+        <section className="card categories-section">
+          <h2>Grade Categories</h2>
+
+          <form onSubmit={handleCategorySubmit} className="class-form">
+            <label>
+              Class
+              <select
+                value={selectedCategoryClassId}
+                onChange={(event) =>
+                  setSelectedCategoryClassId(event.target.value)
+                }
+              >
+                {classes.length === 0 ? (
+                  <option value="">Add a class first</option>
+                ) : (
+                  classes.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.course_code} - {course.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+
+            <div className="row">
+              <label>
+                Category Name
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Homework"
+                  value={categoryForm.name}
+                  onChange={handleCategoryChange}
+                  required
+                />
+              </label>
+
+              <label>
+                Weight %
+                <input
+                  type="number"
+                  name="weight"
+                  placeholder="25"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={categoryForm.weight}
+                  onChange={handleCategoryChange}
+                  required
+                />
+              </label>
+            </div>
+
+            <button type="submit">Add Category</button>
+          </form>
+
+          <div className="category-list">
+            {(categoriesByClass[selectedCategoryClassId] || []).length === 0 ? (
+              <p className="empty">No categories added for this class yet.</p>
+            ) : (
+              categoriesByClass[selectedCategoryClassId].map((category) => (
+                <div key={category.id} className="category-chip">
+                  <span>
+                    {category.name}: {category.weight}%
+                  </span>
+                  <button onClick={() => handleDeleteCategory(category.id)}>
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="card calculator-section">
+          <div className="section-header">
+            <h2>Final Grade Calculator</h2>
+            <span>Target</span>
+          </div>
+
+          <div className="class-form">
+            <label>
+              Class
+              <select
+                value={selectedCalculatorClassId}
+                onChange={(event) => {
+                  const selectedId = event.target.value;
+                  const selectedClass = classes.find(
+                    (course) => String(course.id) === String(selectedId)
+                  );
+
+                  setSelectedCalculatorClassId(selectedId);
+                  setCalculatorForm((prev) => ({
+                    ...prev,
+                    targetGrade: selectedClass?.target_grade || prev.targetGrade
+                  }));
+                }}
+              >
+                {classes.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.course_code} - {course.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="row">
+              <label>
+                Target Grade %
+                <input
+                  type="number"
+                  name="targetGrade"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={calculatorForm.targetGrade}
+                  onChange={handleCalculatorChange}
+                />
+              </label>
+
+              <label>
+                Final Weight %
+                <input
+                  type="number"
+                  name="finalWeight"
+                  min="1"
+                  max="100"
+                  step="0.01"
+                  value={calculatorForm.finalWeight}
+                  onChange={handleCalculatorChange}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="calculator-result">
+            <p>
+              Current Grade:{" "}
+              {selectedCalculatorGrade !== null &&
+              selectedCalculatorGrade !== undefined
+                ? `${selectedCalculatorGrade}%`
+                : "N/A"}
+            </p>
+
+            {finalNeeded === null ? (
+              <h3>Add a graded assignment first.</h3>
+            ) : (
+              <>
+                <h3>You need {finalNeeded}% on the final.</h3>
+                {finalNeeded > 100 && (
+                  <p className="warning-text">
+                    This target is not reachable without extra credit.
+                  </p>
+                )}
+                {finalNeeded <= 0 && (
+                  <p className="success-text">
+                    You have already secured the target grade based on this
+                    calculation.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
+        <section className="card classes-section">
           <div className="section-header">
             <h2>Your Classes</h2>
             <span>{classes.length} total</span>
@@ -413,26 +814,32 @@ const handleCancelEdit = () => {
                       </p>
 
                       {course.target_grade && (
-                        <p className="target">Target Grade: {course.target_grade}%</p>
+                        <p className="target">
+                          Target Grade: {course.target_grade}%
+                        </p>
                       )}
                     </div>
 
+                    {classGrades[course.id]?.gradeType === "weighted" && (
+                      <p className="grade-note">Using weighted categories</p>
+                    )}
+
                     {course.notes && <p className="notes">{course.notes}</p>}
                   </div>
-                  
-                      <button
-                        className="delete-btn"
-                        onClick={() => handleDeleteClass(course.id)}
-                      >
-                        Delete
-                      </button>
+
+                  <button
+                    className="delete-btn"
+                    onClick={() => handleDeleteClass(course.id)}
+                  >
+                    Delete
+                  </button>
                 </article>
               ))}
             </div>
           )}
         </section>
 
-        <section className="card">
+        <section className="card add-assignment-section">
           <h2>{editingAssignmentId ? "Edit Assignment" : "Add Assignment"}</h2>
 
           <form onSubmit={handleAssignmentSubmit} className="class-form">
@@ -453,6 +860,22 @@ const handleCancelEdit = () => {
                     </option>
                   ))
                 )}
+              </select>
+            </label>
+
+            <label>
+              Grade Category
+              <select
+                name="category_id"
+                value={assignmentForm.category_id}
+                onChange={handleAssignmentChange}
+              >
+                <option value="">No category</option>
+                {selectedAssignmentCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} - {category.weight}%
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -554,39 +977,59 @@ const handleCancelEdit = () => {
             </button>
 
             {editingAssignmentId && (
-              <button type="button" className="cancel-btn" onClick={handleCancelEdit}>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={handleCancelEdit}
+              >
                 Cancel Edit
               </button>
             )}
           </form>
         </section>
 
-        <section className="card">
+        <section className="card assignments-section">
           <div className="section-header">
             <h2>Assignments</h2>
-            <span>{assignments.length} total</span>
+            <span>{allCurrentAssignments.length} active</span>
           </div>
 
-          <label className="filter-label">
-            Filter by Class
-            <select
-              value={selectedClassFilter}
-              onChange={(event) => setSelectedClassFilter(event.target.value)}
-            >
-              <option value="All">All Classes</option>
-              {classes.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.course_code}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="row">
+            <label className="filter-label">
+              Filter by Class
+              <select
+                value={selectedClassFilter}
+                onChange={(event) => setSelectedClassFilter(event.target.value)}
+              >
+                <option value="All">All Classes</option>
+                {classes.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.course_code}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          {currentAssignments.length === 0 ? (
-            <p className="empty">No assignments added yet.</p>
+            <label className="filter-label">
+              Sort By
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value)}
+              >
+                <option value="priority">Priority</option>
+                <option value="dueDate">Due Date</option>
+                <option value="class">Class</option>
+                <option value="difficulty">Difficulty</option>
+                <option value="hours">Estimated Hours</option>
+              </select>
+            </label>
+          </div>
+
+          {sortedAssignments.length === 0 ? (
+            <p className="empty">No active assignments.</p>
           ) : (
             <div className="assignment-list">
-              {currentAssignments.map((assignment) => (
+              {sortedAssignments.map((assignment) => (
                 <article key={assignment.id} className="assignment-card">
                   <div>
                     <div className="assignment-topline">
@@ -599,6 +1042,15 @@ const handleCancelEdit = () => {
                     <p className="class-meta">
                       {assignment.course_code} • {assignment.class_name}
                     </p>
+
+                    {assignment.category_name && (
+                      <p className="assignment-details">
+                        Category: {assignment.category_name}{" "}
+                        {assignment.category_weight
+                          ? `(${assignment.category_weight}%)`
+                          : ""}
+                      </p>
+                    )}
 
                     <p className="assignment-details">
                       Due: {assignment.due_date || "No due date"} • Status:{" "}
@@ -634,6 +1086,7 @@ const handleCancelEdit = () => {
             </div>
           )}
         </section>
+
         <section className="card past-section">
           <div className="section-header">
             <h2>Past Assignments</h2>
@@ -644,7 +1097,9 @@ const handleCancelEdit = () => {
             Filter by Class
             <select
               value={selectedPastClassFilter}
-              onChange={(event) => setSelectedPastClassFilter(event.target.value)}
+              onChange={(event) =>
+                setSelectedPastClassFilter(event.target.value)
+              }
             >
               <option value="All">All Classes</option>
               {classes.map((course) => (
@@ -660,7 +1115,10 @@ const handleCancelEdit = () => {
           ) : (
             <div className="assignment-list">
               {pastAssignments.map((assignment) => (
-                <article key={assignment.id} className="assignment-card past-card">
+                <article
+                  key={assignment.id}
+                  className="assignment-card past-card"
+                >
                   <div>
                     <div className="assignment-topline">
                       <h3>{assignment.title}</h3>
@@ -671,13 +1129,24 @@ const handleCancelEdit = () => {
                       {assignment.course_code} • {assignment.class_name}
                     </p>
 
+                    {assignment.category_name && (
+                      <p className="assignment-details">
+                        Category: {assignment.category_name}{" "}
+                        {assignment.category_weight
+                          ? `(${assignment.category_weight}%)`
+                          : ""}
+                      </p>
+                    )}
+
                     <p className="assignment-details">
-                      Score: {assignment.score_received}/{assignment.points_possible}
+                      Score: {assignment.score_received}/
+                      {assignment.points_possible}
                       {assignment.score_received !== null &&
                       assignment.points_possible !== null &&
                       assignment.points_possible > 0
                         ? ` • ${(
-                            (assignment.score_received / assignment.points_possible) *
+                            (assignment.score_received /
+                              assignment.points_possible) *
                             100
                           ).toFixed(2)}%`
                         : ""}

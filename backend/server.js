@@ -8,7 +8,6 @@ const PORT = 5000;
 app.use(cors());
 app.use(express.json());
 
-// Test route
 app.get("/", (req, res) => {
   res.json({ message: "StudyPilot backend is running" });
 });
@@ -17,7 +16,6 @@ app.get("/", (req, res) => {
 // CLASSES ROUTES
 // --------------------
 
-// Get all classes
 app.get("/api/classes", (req, res) => {
   const classes = db
     .prepare("SELECT * FROM classes ORDER BY year DESC, quarter, course_code")
@@ -26,7 +24,6 @@ app.get("/api/classes", (req, res) => {
   res.json(classes);
 });
 
-// Add a new class
 app.post("/api/classes", (req, res) => {
   const {
     name,
@@ -67,7 +64,6 @@ app.post("/api/classes", (req, res) => {
   res.status(201).json(newClass);
 });
 
-// Delete a class
 app.delete("/api/classes/:id", (req, res) => {
   const { id } = req.params;
 
@@ -84,7 +80,6 @@ app.delete("/api/classes/:id", (req, res) => {
 // GRADE CATEGORY ROUTES
 // --------------------
 
-// Get grade categories for one class
 app.get("/api/classes/:classId/categories", (req, res) => {
   const { classId } = req.params;
 
@@ -95,7 +90,6 @@ app.get("/api/classes/:classId/categories", (req, res) => {
   res.json(categories);
 });
 
-// Add grade category to a class
 app.post("/api/classes/:classId/categories", (req, res) => {
   const { classId } = req.params;
   const { name, weight } = req.body;
@@ -111,7 +105,7 @@ app.post("/api/classes/:classId/categories", (req, res) => {
     VALUES (?, ?, ?)
   `);
 
-  const result = stmt.run(classId, name, weight);
+  const result = stmt.run(classId, name, Number(weight));
 
   const newCategory = db
     .prepare("SELECT * FROM grade_categories WHERE id = ?")
@@ -120,11 +114,22 @@ app.post("/api/classes/:classId/categories", (req, res) => {
   res.status(201).json(newCategory);
 });
 
+app.delete("/api/categories/:id", (req, res) => {
+  const { id } = req.params;
+
+  const result = db.prepare("DELETE FROM grade_categories WHERE id = ?").run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Category not found." });
+  }
+
+  res.json({ message: "Category deleted successfully." });
+});
+
 // --------------------
 // ASSIGNMENT ROUTES
 // --------------------
 
-// Get all assignments
 app.get("/api/assignments", (req, res) => {
   const assignments = db
     .prepare(`
@@ -144,7 +149,6 @@ app.get("/api/assignments", (req, res) => {
   res.json(assignments);
 });
 
-// Add assignment
 app.post("/api/assignments", (req, res) => {
   const {
     class_id,
@@ -199,7 +203,6 @@ app.post("/api/assignments", (req, res) => {
   res.status(201).json(newAssignment);
 });
 
-// Update assignment
 app.put("/api/assignments/:id", (req, res) => {
   const { id } = req.params;
 
@@ -260,7 +263,6 @@ app.put("/api/assignments/:id", (req, res) => {
   res.json(updatedAssignment);
 });
 
-// Delete assignment
 app.delete("/api/assignments/:id", (req, res) => {
   const { id } = req.params;
 
@@ -277,9 +279,12 @@ app.delete("/api/assignments/:id", (req, res) => {
 // GRADE CALCULATION ROUTES
 // --------------------
 
-// Simple current grade by total points
 app.get("/api/classes/:classId/current-grade", (req, res) => {
   const { classId } = req.params;
+
+  const categories = db
+    .prepare("SELECT * FROM grade_categories WHERE class_id = ?")
+    .all(classId);
 
   const gradedAssignments = db
     .prepare(`
@@ -296,8 +301,47 @@ app.get("/api/classes/:classId/current-grade", (req, res) => {
     return res.json({
       currentGrade: null,
       earnedPoints: 0,
-      possiblePoints: 0
+      possiblePoints: 0,
+      gradeType: "none"
     });
+  }
+
+  if (categories.length > 0) {
+    let weightedTotal = 0;
+    let usedWeight = 0;
+
+    categories.forEach((category) => {
+      const categoryAssignments = gradedAssignments.filter(
+        (assignment) => assignment.category_id === category.id
+      );
+
+      if (categoryAssignments.length > 0) {
+        const earned = categoryAssignments.reduce(
+          (sum, assignment) => sum + assignment.score_received,
+          0
+        );
+
+        const possible = categoryAssignments.reduce(
+          (sum, assignment) => sum + assignment.points_possible,
+          0
+        );
+
+        const average = (earned / possible) * 100;
+
+        weightedTotal += average * category.weight;
+        usedWeight += category.weight;
+      }
+    });
+
+    if (usedWeight > 0) {
+      return res.json({
+        currentGrade: Number((weightedTotal / usedWeight).toFixed(2)),
+        earnedPoints: null,
+        possiblePoints: null,
+        usedWeight,
+        gradeType: "weighted"
+      });
+    }
   }
 
   const earnedPoints = gradedAssignments.reduce(
@@ -315,11 +359,11 @@ app.get("/api/classes/:classId/current-grade", (req, res) => {
   res.json({
     currentGrade: Number(currentGrade.toFixed(2)),
     earnedPoints,
-    possiblePoints
+    possiblePoints,
+    gradeType: "points"
   });
 });
 
-// Weighted grade summary by categories
 app.get("/api/classes/:classId/grade-summary", (req, res) => {
   const { classId } = req.params;
 
@@ -338,8 +382,8 @@ app.get("/api/classes/:classId/grade-summary", (req, res) => {
     `)
     .all(classId);
 
-  let weightedGrade = 0;
-  let totalUsedWeight = 0;
+  let weightedTotal = 0;
+  let usedWeight = 0;
 
   const categorySummaries = categories.map((category) => {
     const categoryAssignments = assignments.filter(
@@ -366,8 +410,8 @@ app.get("/api/classes/:classId/grade-summary", (req, res) => {
 
     const average = (earned / possible) * 100;
 
-    weightedGrade += average * (category.weight / 100);
-    totalUsedWeight += category.weight;
+    weightedTotal += average * category.weight;
+    usedWeight += category.weight;
 
     return {
       category: category.name,
@@ -376,9 +420,12 @@ app.get("/api/classes/:classId/grade-summary", (req, res) => {
     };
   });
 
+  const weightedGrade =
+    usedWeight > 0 ? Number((weightedTotal / usedWeight).toFixed(2)) : null;
+
   res.json({
-    weightedGrade: Number(weightedGrade.toFixed(2)),
-    totalUsedWeight,
+    weightedGrade,
+    usedWeight,
     categorySummaries
   });
 });
