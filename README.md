@@ -277,20 +277,6 @@ StudyPilot currently supports:
 
 ---
 
-## 🚧 Future Improvements
-
-Future improvements may include:
-
-* User authentication
-* Cloud deployment
-* Calendar view
-* Due date reminders
-* Charts and analytics
-* Dark mode
-* Mobile UI improvements
-
----
-
 ## 🎓 Purpose
 
 StudyPilot was created as a computer science project to combine academic planning with grade awareness.
