@@ -508,3 +508,158 @@ textarea {
     flex-direction: column;
   }
 }
+
+.hero-content {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.developer-notes-btn {
+  align-self: flex-end;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  font-weight: 800;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.developer-notes-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.notes-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 20px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.developer-notes-panel {
+  width: min(900px, 96%);
+  background: white;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+}
+
+.developer-notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.developer-notes-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.8rem;
+}
+
+.modal-eyebrow {
+  color: #2563eb;
+}
+
+.close-notes-btn {
+  border: none;
+  border-radius: 999px;
+  width: 38px;
+  height: 38px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 1.7rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.close-notes-btn:hover {
+  background: #e5e7eb;
+}
+
+.notes-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.notes-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #fbfdff;
+  padding: 18px;
+}
+
+.notes-box h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 1.25rem;
+}
+
+.notes-box p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.notes-box ul {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  color: #4b5563;
+}
+
+.notes-box li {
+  margin: 6px 0;
+}
+
+.notice-box {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.updates-box {
+  background: #f8fafc;
+}
+
+.update-entry {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.update-entry:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.update-entry h4 {
+  margin: 0 0 6px;
+  color: #1d4ed8;
+  font-size: 1rem;
+}
+
+@media (max-width: 850px) {
+  .hero-content {
+    flex-direction: column;
+  }
+
+  .developer-notes-btn {
+    align-self: flex-start;
+  }
+
+  .notes-overlay {
+    padding: 24px 12px;
+  }
+}

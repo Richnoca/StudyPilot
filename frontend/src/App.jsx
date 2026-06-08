@@ -9,6 +9,7 @@ function App() {
   const [assignments, setAssignments] = useState([]);
   const [classGrades, setClassGrades] = useState({});
   const [categoriesByClass, setCategoriesByClass] = useState({});
+  const [showDeveloperNotes, setShowDeveloperNotes] = useState(false);
 
   const [selectedClassFilter, setSelectedClassFilter] = useState("All");
   const [selectedPastClassFilter, setSelectedPastClassFilter] = useState("All");
@@ -466,15 +467,88 @@ function App() {
   return (
     <div className="app">
       <header className="hero">
-        <div>
-          <p className="eyebrow">StudyPilot</p>
-          <h1>Quarter-Based Study & Grade Planner</h1>
-          <p className="subtitle">
-            Add your classes, track assignments, calculate grades, and decide
-            what to work on next.
-          </p>
+        <div className="hero-content">
+          <div>
+            <p className="eyebrow">StudyPilot</p>
+            <h1>Quarter-Based Study & Grade Planner</h1>
+            <p className="subtitle">
+              Add your classes, track assignments, calculate grades, and decide
+              what to work on next.
+            </p>
+          </div>
+
+          <button
+            className="developer-notes-btn"
+            onClick={() => setShowDeveloperNotes(true)}
+          >
+            Developer Notes
+          </button>
         </div>
       </header>
+
+      {showDeveloperNotes && (
+  <div className="notes-overlay">
+    <div className="developer-notes-panel">
+      <div className="developer-notes-header">
+        <div>
+          <p className="eyebrow modal-eyebrow">StudyPilot</p>
+          <h2>Development Notes</h2>
+        </div>
+
+        <button
+          className="close-notes-btn"
+          onClick={() => setShowDeveloperNotes(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="notes-grid">
+        <section className="notes-box notice-box">
+          <h3>⚠️ Notice</h3>
+          <p>
+            StudyPilot is currently under active development. Features,
+            calculations, and layout decisions may continue to change as the
+            project is improved -Cody, App Developer.
+          </p>
+        </section>
+
+        <section className="notes-box">
+          <h3>Known Issues</h3>
+          <ul>
+            <li>Weighted grade calculations are still being refined.</li>
+            <li>Final grade calculator assumes the final is the remaining weighted portion.</li>
+            <li>There is currently no login system, so data is stored locally.</li>
+          </ul>
+        </section>
+
+        <section className="notes-box updates-box">
+          <h3>Updates</h3>
+
+          <div className="update-entry">
+            <h4>June 2026</h4>
+            <ul>
+              <li>Added dashboard summary cards.</li>
+              <li>Added grade categories for weighted grading.</li>
+              <li>Added final grade calculator.</li>
+              <li>Added assignment sorting by priority, due date, class, difficulty, and estimated hours.</li>
+            </ul>
+          </div>
+
+          <div className="update-entry">
+            <h4>May 2026</h4>
+            <ul>
+              <li>Added class creation and deletion.</li>
+              <li>Added assignment creation, editing, and deletion.</li>
+              <li>Added current and past assignment sections.</li>
+              <li>Added assignment priority score system.</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+)}
 
       <main className="layout">
         <section className="card dashboard-section">
