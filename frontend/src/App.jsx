@@ -52,6 +52,15 @@ function App() {
     points_possible: ""
   });
 
+  const fetchAssignments = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/assignments`);
+      setAssignments(response.data);
+    } catch (error) {
+      console.error("Error fetching assignments:", error);
+    }
+  };
+
   const fetchAllCategories = async (classList) => {
     const categoryMap = {};
 
@@ -85,40 +94,57 @@ function App() {
 
       setClasses(classList);
 
-      if (classList.length > 0) {
-        if (!assignmentForm.class_id) {
-          setAssignmentForm((prev) => ({
-            ...prev,
-            class_id: classList[0].id
-          }));
-        }
+      if (classList.length === 0) {
+        setAssignmentForm((prev) => ({
+          ...prev,
+          class_id: "",
+          category_id: ""
+        }));
 
-        if (!selectedCategoryClassId) {
-          setSelectedCategoryClassId(classList[0].id);
-        }
+        setSelectedCategoryClassId("");
+        setSelectedCalculatorClassId("");
+        setCategoriesByClass({});
+        setClassGrades({});
+        return;
+      }
 
-        if (!selectedCalculatorClassId) {
-          setSelectedCalculatorClassId(classList[0].id);
-          setCalculatorForm((prev) => ({
-            ...prev,
-            targetGrade: classList[0].target_grade || 80
-          }));
-        }
+      const validClassIds = classList.map((course) => String(course.id));
+      const firstClassId = String(classList[0].id);
+
+      setAssignmentForm((prev) => {
+        const currentClassIsValid = validClassIds.includes(String(prev.class_id));
+
+        return {
+          ...prev,
+          class_id: currentClassIsValid ? prev.class_id : firstClassId,
+          category_id: currentClassIsValid ? prev.category_id : ""
+        };
+      });
+
+      const categoryClassIsValid = validClassIds.includes(
+        String(selectedCategoryClassId)
+      );
+
+      if (!categoryClassIsValid) {
+        setSelectedCategoryClassId(firstClassId);
+      }
+
+      const calculatorClassIsValid = validClassIds.includes(
+        String(selectedCalculatorClassId)
+      );
+
+      if (!calculatorClassIsValid) {
+        setSelectedCalculatorClassId(firstClassId);
+        setCalculatorForm((prev) => ({
+          ...prev,
+          targetGrade: classList[0].target_grade || 80
+        }));
       }
 
       await fetchAllCategories(classList);
       await fetchClassGrades(classList);
     } catch (error) {
       console.error("Error fetching classes:", error);
-    }
-  };
-
-  const fetchAssignments = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/assignments`);
-      setAssignments(response.data);
-    } catch (error) {
-      console.error("Error fetching assignments:", error);
     }
   };
 
@@ -184,6 +210,7 @@ function App() {
       fetchClasses();
     } catch (error) {
       console.error("Error adding class:", error);
+      alert(error.response?.data?.error || "Error adding class.");
     }
   };
 
@@ -192,6 +219,16 @@ function App() {
 
     if (!selectedCategoryClassId) {
       alert("Please add a class first.");
+      return;
+    }
+
+    const validClass = classes.find(
+      (course) => String(course.id) === String(selectedCategoryClassId)
+    );
+
+    if (!validClass) {
+      alert("Please select a valid class before adding a category.");
+      fetchClasses();
       return;
     }
 
@@ -210,6 +247,7 @@ function App() {
       fetchAssignments();
     } catch (error) {
       console.error("Error adding category:", error);
+      alert(error.response?.data?.error || "Error adding category.");
     }
   };
 
@@ -220,6 +258,7 @@ function App() {
       fetchAssignments();
     } catch (error) {
       console.error("Error deleting category:", error);
+      alert(error.response?.data?.error || "Error deleting category.");
     }
   };
 
@@ -228,6 +267,27 @@ function App() {
 
     if (!assignmentForm.class_id) {
       alert("Please add a class before adding assignments.");
+      return;
+    }
+
+    const validClass = classes.find(
+      (course) => String(course.id) === String(assignmentForm.class_id)
+    );
+
+    if (!validClass) {
+      alert("Please select a valid class before adding an assignment.");
+      fetchClasses();
+      return;
+    }
+
+    const validCategory =
+      !assignmentForm.category_id ||
+      selectedAssignmentCategories.some(
+        (category) => String(category.id) === String(assignmentForm.category_id)
+      );
+
+    if (!validCategory) {
+      alert("Please select a valid grade category or choose No category.");
       return;
     }
 
@@ -276,6 +336,7 @@ function App() {
       fetchClasses();
     } catch (error) {
       console.error("Error saving assignment:", error);
+      alert(error.response?.data?.error || "Error saving assignment.");
     }
   };
 
@@ -286,6 +347,7 @@ function App() {
       fetchAssignments();
     } catch (error) {
       console.error("Error deleting class:", error);
+      alert(error.response?.data?.error || "Error deleting class.");
     }
   };
 
@@ -296,6 +358,7 @@ function App() {
       fetchClasses();
     } catch (error) {
       console.error("Error deleting assignment:", error);
+      alert(error.response?.data?.error || "Error deleting assignment.");
     }
   };
 
@@ -487,68 +550,77 @@ function App() {
       </header>
 
       {showDeveloperNotes && (
-  <div className="notes-overlay">
-    <div className="developer-notes-panel">
-      <div className="developer-notes-header">
-        <div>
-          <p className="eyebrow modal-eyebrow">StudyPilot</p>
-          <h2>Development Notes</h2>
+        <div className="notes-overlay">
+          <div className="developer-notes-panel">
+            <div className="developer-notes-header">
+              <div>
+                <p className="eyebrow modal-eyebrow">StudyPilot</p>
+                <h2>Development Notes</h2>
+              </div>
+
+              <button
+                className="close-notes-btn"
+                onClick={() => setShowDeveloperNotes(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="notes-grid">
+              <section className="notes-box notice-box">
+                <h3>⚠️ Notice</h3>
+                <p>
+                  StudyPilot is currently under active development. Features,
+                  calculations, and layout decisions may continue to change as
+                  the project is improved. -Cody, App Developer.
+                </p>
+              </section>
+
+              <section className="notes-box">
+                <h3>Known Issues</h3>
+                <ul>
+                  <li>Weighted grade calculations are still being refined.</li>
+                  <li>
+                    Final grade calculator assumes the final is the remaining
+                    weighted portion.
+                  </li>
+                  <li>
+                    There is currently no login system, so data is stored
+                    locally.
+                  </li>
+                </ul>
+              </section>
+
+              <section className="notes-box updates-box">
+                <h3>Updates</h3>
+
+                <div className="update-entry">
+                  <h4>June 2026</h4>
+                  <ul>
+                    <li>Added dashboard summary cards.</li>
+                    <li>Added grade categories for weighted grading.</li>
+                    <li>Added final grade calculator.</li>
+                    <li>
+                      Added assignment sorting by priority, due date, class,
+                      difficulty, and estimated hours.
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="update-entry">
+                  <h4>May 2026</h4>
+                  <ul>
+                    <li>Added class creation and deletion.</li>
+                    <li>Added assignment creation, editing, and deletion.</li>
+                    <li>Added current and past assignment sections.</li>
+                    <li>Added assignment priority score system.</li>
+                  </ul>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
-
-        <button
-          className="close-notes-btn"
-          onClick={() => setShowDeveloperNotes(false)}
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="notes-grid">
-        <section className="notes-box notice-box">
-          <h3>⚠️ Notice</h3>
-          <p>
-            StudyPilot is currently under active development. Features,
-            calculations, and layout decisions may continue to change as the
-            project is improved -Cody, App Developer.
-          </p>
-        </section>
-
-        <section className="notes-box">
-          <h3>Known Issues</h3>
-          <ul>
-            <li>Weighted grade calculations are still being refined.</li>
-            <li>Final grade calculator assumes the final is the remaining weighted portion.</li>
-            <li>There is currently no login system, so data is stored locally.</li>
-          </ul>
-        </section>
-
-        <section className="notes-box updates-box">
-          <h3>Updates</h3>
-
-          <div className="update-entry">
-            <h4>June 2026</h4>
-            <ul>
-              <li>Added dashboard summary cards.</li>
-              <li>Added grade categories for weighted grading.</li>
-              <li>Added final grade calculator.</li>
-              <li>Added assignment sorting by priority, due date, class, difficulty, and estimated hours.</li>
-            </ul>
-          </div>
-
-          <div className="update-entry">
-            <h4>May 2026</h4>
-            <ul>
-              <li>Added class creation and deletion.</li>
-              <li>Added assignment creation, editing, and deletion.</li>
-              <li>Added current and past assignment sections.</li>
-              <li>Added assignment priority score system.</li>
-            </ul>
-          </div>
-        </section>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       <main className="layout">
         <section className="card dashboard-section">
